@@ -514,6 +514,25 @@ class SartreTrigger(orm.Model):
             return (field, '<=', limit_date.strftime(datetime_format))
         return
 
+    def _add_trigger_date_end_filter(self, cr, uid, trigger, context):
+        """Build trigger date filter"""
+        if trigger.on_date:
+            datetime_format = '%Y-%m-%d %H:%M:%S'
+            now = datetime.now()
+            interval_number = trigger.on_date_range
+            interval_type = trigger.on_date_range_type
+            interval_operand = trigger.on_date_range_operand
+            # Add datetime filter
+            field = trigger.on_date_type
+            limit_date = now
+            if interval_operand == 'after':
+                limit_date -= relativedelta(**{interval_type: interval_number + 1})
+            if interval_operand == 'before':
+                limit_date += relativedelta(**{interval_type: interval_number - 1})
+            self.logger.notifyChannel('sartre.trigger', netsvc.LOG_DEBUG, 
+                                      "(%s) [%s, %s, %s]" % (interval_operand, field, '>', limit_date.strftime(datetime_format)))
+            return (field, '>', limit_date.strftime(datetime_format))
+
     def _add_max_executions_filter(self, cr, uid, trigger, context):
         """Build max executions filter"""
         if trigger.executions_max_number:
@@ -583,7 +602,7 @@ class SartreTrigger(orm.Model):
             for filter_ in trigger.filter_ids:
                 domain.extend(eval(filter_.domain.replace('%today', time.strftime('%Y-%m-%d %H:%M:%S'))))
         # Add general filters
-        for filter_name in ('_add_trigger_date_filter', '_add_max_executions_filter'):
+        for filter_name in ('_add_trigger_date_filter', '_add_trigger_date_end_filter', '_add_max_executions_filter'):
             domain_extension = getattr(self, filter_name)(cr, uid, trigger, context)
             if domain_extension:
                 domain.append(domain_extension)
